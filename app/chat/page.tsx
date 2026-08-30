@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import io from "socket.io-client";
-
-const socket = io(
-  process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000"
-);
+import { io, Socket } from "socket.io-client";
 
 type Message = {
   roomId: string;
@@ -71,6 +67,18 @@ const [username, setUsername] = useState("");
 const chatEndRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const syncingRef = useRef(false);
+  const socketRef = useRef<Socket | null>(null);
+
+useEffect(() => {
+    socketRef.current = io(
+      process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000"
+    );
+
+return () => {
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
 
 useEffect(() => {
     if (urlRoom) {
@@ -98,42 +106,47 @@ if (window.YT && window.YT.Player) {
   }, []);
 
 useEffect(() => {
-    socket.on("receive_message", (data: Message) => {
+    if (!socketRef.current) return;
+
+socketRef.current.on("receive_message", (data: Message) => {
       setChat((prev) => [...prev, data]);
     });
 
-socket.on("video_updated", (data: { videoId: string }) => {
+socketRef.current.on("video_updated", (data: { videoId: string }) => {
       setVideoId(data.videoId);
       setVideoInput(data.videoId);
     });
 
-socket.on("room_users", (users: string[]) => {
+socketRef.current.on("room_users", (users: string[]) => {
       setRoomUsers(users);
     });
 
-socket.on("sync_video_action", (data: { action: "play" | "pause" }) => {
-      if (!playerRef.current) return;
+socketRef.current.on(
+      "sync_video_action",
+      (data: { action: "play" | "pause" }) => {
+        if (!playerRef.current) return;
 
 syncingRef.current = true;
 
 if (data.action === "play") {
-        playerRef.current.playVideo();
-      }
+          playerRef.current.playVideo();
+        }
 
 if (data.action === "pause") {
-        playerRef.current.pauseVideo();
-      }
+          playerRef.current.pauseVideo();
+        }
 
 setTimeout(() => {
-        syncingRef.current = false;
-      }, 500);
-    });
+          syncingRef.current = false;
+        }, 500);
+      }
+    );
 
 return () => {
-      socket.off("receive_message");
-      socket.off("video_updated");
-      socket.off("room_users");
-      socket.off("sync_video_action");
+      socketRef.current?.off("receive_message");
+      socketRef.current?.off("video_updated");
+      socketRef.current?.off("room_users");
+      socketRef.current?.off("sync_video_action");
     };
   }, []);
 
@@ -143,6 +156,7 @@ useEffect(() => {
 
 useEffect(() => {
     if (!playerReady || !videoId) return;
+    if (!window.YT || !window.YT.Player) return;
 
 if (playerRef.current) {
       try {
@@ -156,7 +170,7 @@ if (playerRef.current) {
 playerRef.current = new window.YT.Player("youtube-player", {
       height: "100%",
       width: "100%",
-      videoId: videoId,
+      videoId,
       playerVars: {
         autoplay: 0,
         rel: 0,
@@ -167,7 +181,7 @@ playerRef.current = new window.YT.Player("youtube-player", {
           if (!joined || syncingRef.current) return;
 
 if (event.data === window.YT.PlayerState.PLAYING) {
-            socket.emit("video_action", {
+            socketRef.current?.emit("video_action", {
               roomId,
               action: "play",
               username,
@@ -175,7 +189,7 @@ if (event.data === window.YT.PlayerState.PLAYING) {
           }
 
 if (event.data === window.YT.PlayerState.PAUSED) {
-            socket.emit("video_action", {
+            socketRef.current?.emit("video_action", {
               roomId,
               action: "pause",
               username,
@@ -189,12 +203,12 @@ if (event.data === window.YT.PlayerState.PAUSED) {
 const joinRoom = () => {
     if (!username.trim() || !roomId.trim()) return;
 
-socket.emit("join_room", { roomId, username });
+socketRef.current?.emit("join_room", { roomId, username });
     setJoined(true);
   };
 
 const leaveRoom = () => {
-    socket.emit("leave_room", { roomId, username });
+    socketRef.current?.emit("leave_room", { roomId, username });
 
 setJoined(false);
     setChat([]);
@@ -224,7 +238,7 @@ const messageData: Message = {
       type: "user",
     };
 
-socket.emit("send_message", messageData);
+socketRef.current?.emit("send_message", messageData);
     setMessage("");
   };
 
@@ -274,7 +288,7 @@ if (!extractedId) {
       return;
     }
 
-socket.emit("load_video", {
+socketRef.current?.emit("load_video", {
       roomId,
       videoId: extractedId,
       username,
