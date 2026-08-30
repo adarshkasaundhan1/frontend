@@ -1,9 +1,6 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 
@@ -52,7 +49,7 @@ return "";
   }
 }
 
-export default function ChatPage() {
+function ChatPageContent() {
   const searchParams = useSearchParams();
   const urlRoom = searchParams.get("room");
 
@@ -958,5 +955,15 @@ return (
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={<div style={{ color: "white", padding: "20px" }}>Loading...</div>}
+    >
+      <ChatPageContent />
+    </Suspense>
   );
 }
