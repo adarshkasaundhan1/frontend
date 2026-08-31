@@ -412,8 +412,9 @@ const chatEndRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
 const activeTheme = themes[selectedTheme];
-  const apiBase =
-    process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000";
+  const apiBase = (
+    process.env.NEXT_PUBLIC_SOCKET_URL || "https://server-g8eq.onrender.com"
+  ).trim();
 
 useEffect(() => {
     socketRef.current = io(apiBase);
@@ -604,8 +605,30 @@ async function fetchTrendingVideos() {
       setTrendingLoading(true);
       setYouTubeError("");
 
-const response = await fetch(`${apiBase}/api/youtube/trending`);
-      const data = await response.json();
+console.log("Trending API Base:", apiBase);
+
+const response = await fetch(`${apiBase}/api/youtube/trending`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+const contentType = response.headers.get("content-type") || "";
+      const rawText = await response.text();
+
+if (!contentType.includes("application/json")) {
+        throw new Error(
+          `Trending endpoint returned non-JSON response. Status: ${response.status}`
+        );
+      }
+
+let data: any;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error("Invalid JSON returned from trending endpoint");
+      }
 
 if (!response.ok || !data.success) {
         throw new Error(data.message || "Failed to load trending videos");
@@ -626,10 +649,33 @@ try {
       setYouTubeLoading(true);
       setYouTubeError("");
 
+console.log("Search API Base:", apiBase);
+
 const response = await fetch(
-        `${apiBase}/api/youtube/search?q=${encodeURIComponent(youtubeQuery)}`
+        `${apiBase}/api/youtube/search?q=${encodeURIComponent(youtubeQuery)}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        }
       );
-      const data = await response.json();
+
+const contentType = response.headers.get("content-type") || "";
+      const rawText = await response.text();
+
+if (!contentType.includes("application/json")) {
+        throw new Error(
+          `Search endpoint returned non-JSON response. Status: ${response.status}`
+        );
+      }
+
+let data: any;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error("Invalid JSON returned from search endpoint");
+      }
 
 if (!response.ok || !data.success) {
         throw new Error(data.message || "Failed to search videos");
